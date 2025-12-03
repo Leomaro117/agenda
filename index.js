@@ -17,7 +17,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 app.use(morgan(':method :url :status :res[content-length] - :response-time ms'))
 
-// --- Rutas ---
+// --- API ROUTES ---
 // GET all
 app.get(['/api/persons', '/persons'], (req, res, next) => {
   Person.find({})
@@ -69,7 +69,7 @@ app.post(['/api/persons', '/persons'], (req, res, next) => {
     .catch(next)
 })
 
-// PUT (update)
+// PUT
 app.put(['/api/persons/:id', '/persons/:id'], (req, res, next) => {
   const { name, number } = req.body
 
@@ -82,7 +82,19 @@ app.put(['/api/persons/:id', '/persons/:id'], (req, res, next) => {
     .catch(next)
 })
 
-// --- Middleware 404 ---
+
+// -----------------------------------------------------------------------------
+// --- SERVIR FRONTEND (ESTO DEBE IR *ANTES* DEL MIDDLEWARE 404) ---
+// -----------------------------------------------------------------------------
+app.use(express.static(path.join(__dirname, 'dist')))
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'))
+})
+// -----------------------------------------------------------------------------
+
+
+// --- Middleware 404 --- (se mueve al final real)
 app.use((req, res) => {
   res.status(404).json({ error: 'Unknown endpoint' })
 })
@@ -102,15 +114,8 @@ app.use((error, req, res, next) => {
   next(error)
 })
 
-// --- Servir frontend ---
-// --- Servir frontend SIEMPRE ---
-app.use(express.static(path.join(__dirname, 'dist')))
 
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'))
-})
-
-
+// --- Server ---
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`)
