@@ -103,12 +103,13 @@ app.use((error, req, res, next) => {
 })
 
 // --- Servir frontend ---
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, 'dist')))
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'dist', 'index.html'))
-  })
-}
+// --- Servir frontend SIEMPRE ---
+app.use(express.static(path.join(__dirname, 'dist')))
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'))
+})
+
 
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
