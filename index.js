@@ -1,90 +1,116 @@
-const express = require('express');
-const path = require('path');
-const cors = require('cors');
-const morgan = require('morgan'); // 👈 Middleware para registrar peticiones
-const app = express();
+require('dotenv').config()
+const express = require('express')
+const path = require('path')
+const cors = require('cors')
+const morgan = require('morgan')
+
+const Person = require('./models/person')
+const app = express()
 
 // --- Middleware ---
-app.use(express.json());
+app.use(express.json())
 
-// CORS solo en desarrollo
 if (process.env.NODE_ENV !== 'production') {
-  app.use(cors());
-  console.log('✅ CORS habilitado (modo desarrollo)');
+  app.use(cors())
+  console.log('CORS habilitado (modo desarrollo)')
 }
 
-// Morgan muestra en consola cada petición HTTP
-app.use(morgan(':method :url :status :res[content-length] - :response-time ms'));
+app.use(morgan(':method :url :status :res[content-length] - :response-time ms'))
 
-// --- Datos iniciales ---
-let persons = [
-  { id: 1, name: 'Arto Hellas', number: '040-123456' },
-  { id: 2, name: 'Ada Lovelace', number: '39-44-5323523' },
-  { id: 3, name: 'Dan Abramov', number: '12-43-234345' },
-  { id: 4, name: 'Mary Poppendieck', number: '39-23-6423122' }
-];
+// --- Rutas ---
+// GET all
+app.get(['/api/persons', '/persons'], (req, res, next) => {
+  Person.find({})
+    .then(result => res.json(result))
+    .catch(next)
+})
 
-// --- Rutas de la API ---
-app.get(['/api/persons', '/persons'], (req, res) => {
-  res.json(persons);
-});
-
-app.get('/info', (req, res) => {
-  const totalPersons = persons.length;
-  const date = new Date();
-  res.send(`
-    <p>Phonebook has info for ${totalPersons} people</p>
-    <p>${date}</p>
-  `);
-});
-
-app.get(['/api/persons/:id', '/persons/:id'], (req, res) => {
-  const id = Number(req.params.id);
-  const person = persons.find(p => p.id === id);
-  if (person) {
-    res.json(person);
-  } else {
-    res.status(404).json({ error: 'Person not found' });
+// Info
+app.get('/info', async (req, res, next) => {
+  try {
+    const total = await Person.countDocuments({})
+    res.send(`
+      <p>Phonebook has info for ${total} people</p>
+      <p>${new Date()}</p>
+    `)
+  } catch (err) {
+    next(err)
   }
-});
+})
 
-app.delete(['/api/persons/:id', '/persons/:id'], (req, res) => {
-  const id = Number(req.params.id);
-  persons = persons.filter(p => p.id !== id);
-  res.status(204).end();
-});
+// GET by ID
+app.get(['/api/persons/:id', '/persons/:id'], (req, res, next) => {
+  Person.findById(req.params.id)
+    .then(person => {
+      if (person) {
+        res.json(person)
+      } else {
+        res.status(404).json({ error: 'Person not found' })
+      }
+    })
+    .catch(next)
+})
 
-app.post(['/api/persons', '/persons'], (req, res) => {
-  const body = req.body;
+// DELETE
+app.delete(['/api/persons/:id', '/persons/:id'], (req, res, next) => {
+  Person.findByIdAndDelete(req.params.id)
+    .then(() => res.status(204).end())
+    .catch(next)
+})
 
-  if (!body.name) return res.status(400).json({ error: 'Name is missing' });
-  if (!body.number) return res.status(400).json({ error: 'Number is missing' });
+// POST
+app.post(['/api/persons', '/persons'], (req, res, next) => {
+  const { name, number } = req.body
 
-  const nameExists = persons.find(p => p.name.toLowerCase() === body.name.toLowerCase());
-  if (nameExists) {
-    return res.status(400).json({ error: 'Name must be unique' });
+  const person = new Person({ name, number })
+
+  person.save()
+    .then(saved => res.json(saved))
+    .catch(next)
+})
+
+// PUT (update)
+app.put(['/api/persons/:id', '/persons/:id'], (req, res, next) => {
+  const { name, number } = req.body
+
+  Person.findByIdAndUpdate(
+    req.params.id,
+    { name, number },
+    { new: true, runValidators: true }
+  )
+    .then(updated => res.json(updated))
+    .catch(next)
+})
+
+// --- Middleware 404 ---
+app.use((req, res) => {
+  res.status(404).json({ error: 'Unknown endpoint' })
+})
+
+// --- Manejo de errores ---
+app.use((error, req, res, next) => {
+  console.error('ERROR:', error.message)
+
+  if (error.name === 'CastError') {
+    return res.status(400).json({ error: 'Invalid ID format' })
   }
 
-  const newPerson = {
-    id: Math.floor(Math.random() * 1000000),
-    name: body.name,
-    number: body.number
-  };
+  if (error.name === 'ValidationError') {
+    return res.status(400).json({ error: error.message })
+  }
 
-  persons = persons.concat(newPerson);
-  res.json(newPerson);
-});
+  next(error)
+})
 
-// --- Servir frontend en producción ---
+// --- Servir frontend ---
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, 'dist')));
+  app.use(express.static(path.join(__dirname, 'dist')))
   app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-  });
+    res.sendFile(path.join(__dirname, 'dist', 'index.html'))
+  })
 }
 
-// --- Servidor ---
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
-});
+  console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`)
+})
